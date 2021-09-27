@@ -13,7 +13,6 @@ can manage inventory to prevent both overcrowding and scarcity.
 fitted with a series of sensors that send Bicicletas Bogota information about the bike
 condition (brake levels, tire pressure for front & rear tires, etc.) every 60 seconds.
 
-
 ## Assumptions
 
 These are the assumptions that need validation, but what I'm assuming in this design. 
@@ -69,7 +68,7 @@ There are two workflows when coming into the application the user will have the 
 
 After successfully loading the user and validating payment information the user is then presented to the next step. 
 
-The application will allow the user to select a station, or in the case of the terminal will present them with the current station. The station will have  
+The application will allow the user to select a station, or in the case of the terminal will present them with the current station. The station will have a kiosk mode that will only present it's stations 
 
 The application will make a GET `/station/checkout` request with the users location to the Biking Services backend.
 
@@ -93,17 +92,15 @@ The application will be given a list of stations that are available to check the
 
 The service will charge the customer based on the duration, and write to the database recording what user, bike, and end time. It will also mark the bike as checked in.
 
-
 ### Management Web Application
 
 The Management Web application will be used by the administers of the system. There are a few different type of administrators. The application will provide a view for each. It will also be a mobile application as many of the users will likely be on the move either working on bicycles or moving/managing them. 
 
-
-* Capacity Mangers - Provide the utilization rates of bicyles at each station and show how many are currently available at each station so they can make decisions on how to supply bicyles. This view will also allow managers to add or remove bicyles from the stations. They could access this on the go to make changes while they are at the station. 
+* Capacity Mangers - Provide the utilization rates of bicycles at each station and show how many are currently available at each station so they can make decisions on how to supply bicycles. This view will also allow managers to add or remove bicycles from the stations. They could access this on the go to make changes while they are at the station. 
 
 * Technicians - View which shows bicycles status by station and can quickly see what is in need or will soon need service. It will also allow technicians to mark bicycles as unavailable so they can keep users from checking them out while they are en route to work on them. 
 
-* Billing Department - Provide an interface which shows how much money is being made over time, and allow the biling department to adjust the cost. Further discussion on if there is need for tuning of the prices by day/hour/etc. We will assume a flat rate.
+* Billing Department - Provide an interface which shows how much money is being made over time, and allow the billing department to adjust the cost. Further discussion on if there is need for tuning of the prices by day/hour/etc. We will assume a flat rate.
 
 This will need to be an authenticated application which allows only those with access in. There will need to be admin functions for those to add new users and assign them roles so they only have functions to the appropriate views. The roles will line up with what is listed above in addition to a admin who can view all. 
 
@@ -112,13 +109,15 @@ Interactions will be described in the services section. User interfaces will sup
 
 ### Services
 
-There will be 3 distinct services for handling the business logic between the client applications and the database. Each service will be act independtly but operate on the same database. This is so we can minimize impact of changes and keep responsibliites cleanly seperated. 
+There will be 2 services for handling the business logic between the client applications and the database. 
 
-These will be HTTP servers written in something such as GO to be lightweight, memory efficient and scale well. 
+These will be HTTP servers written in something such as GO to be lightweight, memory efficient and scale well. It would make sense to use an ORM since the data is relational in nature. The frontend and backend will communicate in a consistent JSON structure. 
 
-### Biking Services
+The monitoring services has been separated out because it will be dealing with much higher traffic from all the monitoring posts coming from thing bicycles. It will load a cache of the rules on startup and will have an endpoint to cache bust when an update is made from the biking and reporting services backend. 
 
-The biking services will serve the mobile application for cycists. It will handle the follow transactions.
+### Biking & Reporting Services Backend
+
+The biking services will serve the mobile application for cyclists. It will handle the follow transactions. We will have RESTful endpoints for the models as showing in the [Database Design](#database-design). I'm outlining the endpoints below
 
 `GET /station/` - Gets a station an a list of bicycles available for checkout based on status. Along with current billing cost. 
 
@@ -127,82 +126,133 @@ The biking services will serve the mobile application for cycists. It will handl
 
 `POST /station/checkout` - Marks a bicycle as checked out, and enters a row in cyclist_actions indicating it's checked out. 
 
-    Parameters - Station ID, User ID, Bicycle ID
+    Parameters - Station ID, Station Lock ID, User ID, Bicycle ID
     Reply - Start Date Time
 
 `POST /station/checkin` - Marks a bicycle as checked in, and then process payment for the user. 
 
-
-### Reporting Services
+    Parameters - Station ID, Station Lock ID, User ID, Bicycle ID
+    Reply - Cost
 
 The reporting services will need to be aware of the role of the user to ensure the have access to each action they are taking. I've grouped these actions under their respective roles here. 
 
 #### Technicians 
 
-`GET /bicycles/` - Returns a list of all stations and bicycles with their current telemtry and and status based on telemetry rules
+`GET /bicycles/` - Returns a list of all stations and bicycles with their current telemetry and and status based on telemetry rules
 
     Parameters - User ID
     Reply - Stations -> Bicycles -> Telementry and any Status
 
-`POST /bicycle/status` - Sets a bicycle to a status indicated by the technician. To take it out of servie or put back in. 
+`POST /bicycle/status` - Sets a bicycle to a status indicated by the technician. To take it out of service or put back in. 
 
-`POST /telemetry` - Allows user to technicians to create new telemetry rules. Rules will be inactivated instead of deleted to preserve relationships to notifications. Examples would be. Brake Level too low, Tire pressure too low, location not in range of station (STOLEN!)
+`POST /telemetry` - Allows user to technicians to create new telemetry rules. Rules will be inactivated instead of deleted to preserve relationships to notifications. Examples would be. Brake Level too low, Tire pressure too low.
 
     Parameters - User ID, Telemtry Type, Warning Value, Critical Value
     Reply - Success/Failure
 
-#### Billing 
+#### Billing
 
 `GET /billing` - Returns billing information for the past specified days. Can be used to report on how much revenue is being generated. 
 
     Parameters - User ID, Start Date, End Date
     Reply - List of transactions with cyclists, duration, and billed amount as well as the current cost per minute. 
 
-`POST /billing` - Creates a new billing_rule that goes into effect for new bike riders. Billing rules are never deleted only inactivated to preserve relationships and history. 
+`POST/DELETE /billing` - Creates a new billing_rule that goes into effect for new bike riders. Billing rules are never deleted only inactivated to preserve relationships and history.
 
 #### Capacity Managers
 
-`GET /cyclist/actions` - Returns a list of cyclist actions over a time period that can be used to analyze the volume of actions taken at a given station. 
+`GET /cyclist/actions` - Returns a list of cyclist actions over a time period that can be used to analyze the volume of actions taken at a given station.
 
     Parameters - User ID, Start Date, End Date
     Response - List of actions over the given time period. Along with relevant station and bicycle information. 
 
-`POST /bicycle` - Add/Remove a bicycle to a station. A bicycle would never be removed, it could be retired from action though. 
+`POST/DELETE /bicycle` - Add/Remove a bicycle to a station. A bicycle would never be removed, it could be retired from action though.
 
-    Parameters - User ID, Station_ID
+    Parameters - User ID, Station_ID, Bicycle ID (not passedo for new)
     Response - Bicycle ID
 
-`POST /station` - Add/Remove a station. Stations would never be removed. Could be retired. 
+`POST/DELETE /station` - Add/Remove a station. Stations would never be removed. Could be retired.
 
-    Parameters - User ID,
+    Parameters - User ID, Station_id (not passed for new)
     Response - Station ID
 
+`POST/DELETE /station_lock` - Add/Remove a station lock. Stations locks would never be removed. Could be retired.
+
+    Parameters - User ID, station_lock_id (not passed for new)
+    Response - Station ID 
+
+#### Monitoring Services System
+
+`GET /bicycle/telemetry`
+
+    Returns a list of telemetry rules that have been created. 
+
+`POST /bicycle/telemetry`
+
+    Takes a list of telemetries and persist them to the bicycle_telemtry table. 
+
+`POST /bicycle/telemetry_notification`
+
+
+    This endpoint will record the current telemetry for a bicycle and evaluate the given rules to determine if a notification should be sent to the technicians. 
+
+    Parameters - Bicycle ID, Brake Level, Tire Pressure Front, Location, etc.. 
+    Response -  Success
+
+    
 ### Monitoring Services
 
-The monitoring services exist as an interface for the bicycles themselves to record telementry and be aware of bike status. The services also will watch telemetry and generate telemetry notifications which will be sent to the managers in the system with a role of tehnician based on the rules defined. 
+The monitoring services exist as an interface for the bicycles themselves to record telemetry and be aware of bike status. The services also will watch telemetry and generate telemetry notifications which will be sent to the managers in the system with a role of technician based on the rules defined.
 
-In order to ensure telemetry notification delivery we should consider using a job queue system for sending mail in case of failures. 
+The service will load the rules, and the list of technicians into cache on server load.
 
-`POST /bicycle/telemetry` - This endpoint will record the current telementry for a bicycle and evaluate the given rules to determine if a notification should be sent to the technicians. If so it will write a wrote to the bicycle_telemetries and deliver the message. 
+In order to ensure telemetry notification delivery we should consider using a job queue system for sending mail in case of failures.
+
+During operation as the endpoint is recieving telemtries and evaluating it will cache up a portion of rules and then flush them to disk when a certain number of an amount of time has passed. It will then proxy a request to the bicycle services backend to persist and flush it from cache. 
+
+`POST /bicycle/telemetry` - 
+    Evaluates the telemetry against the a cached set of rules. IF there is a notification it will get proxied over to the bicycle services to persist to the DB, it will then queue the notification for delivery to the technicians. 
 
     Parameters - Bicycle ID, Brake Level, Tire Pressure Front, Location, etc.. 
     Response -  Success
 
 ### Database Design
 
-Below is a high level database design to cover what all is stored in the system. The data model indicates reference tables with blue, and ativity tables with yellow. 
+Below is a high level database design to cover what all is stored in the system. The data model indicates reference tables with blue, and activity tables with yellow.
 
-Not all relationships are drawn for simplicity. This communicates the core relationships between the models. 
+Not all relationships are drawn for simplicity. This communicates the core relationships between the models.
 
-The bicycle_telemetries table will need to be partitioned one date such that we're able to maintain performance. We should also consider archiving the data after a certain amount of time. 
+The bicycle_telemetries table will need to be partitioned one date such that we're able to maintain performance. We should also consider archiving the data after a certain amount of time.
 
 ![High Level Diagram](./images/database.png)
 
 
+### Deployment
 
-### Additional Considerations 
+This section will cover how the services will deployed and made available. 
 
-- Need to understand expected volume of cyclists and bicycles to take into consideration how many requests we will be handling. This could have further impact on scaling and size of services and databases
-- Database will need to have regular backups in case of failure. 
-- Consider a reporting database as volume grows. Especially for telementries as the volumen will be quite high with each bicyle checking in every 60 seconds. 
-- All services will have monitoring in place to let technial team know about failures proactively to engage and fix. 
+One thing to consider for these services, is that even in the case where we consider that cyclist could bike 24 hours a day there will be a significant drop off in activity during the night. This gives us some considerations to use scaling to save costs when there is lower activity in the system.
+
+We have 3 conatiners that will need deployed. We will containerize all of our front end and backend services and use full VMs for Redis and the Database (Postgres DB)
+
+#### Kubernetes
+
+Deploy in a Kubernetes Cluster in a cloud vendor. They all have it. We can use horizontal autoscaling to make sure containers scale out during times of high traffic weekends, and daytime. This also allows us to keep cost down when it's not needed. At a minimum we should keep 2 containers up at all times in case of a failure. 
+
+* Management Web App front end
+* Cyclist Web App front end
+* Bicycle Backend
+* Monitoring Services
+  
+#### VM or Cloud Specific Services
+
+In general Kubernetes does not do great with persistant services. These are important non-disposable entity in the system and should be treated so. Using native services usually come with benefits of automatic backups, ability to scale on demand etc.. If needed to scale we will evalaute and do so as time goes on. 
+
+* Redis High Availability
+* Postgres DB
+
+### Additional Considerations
+
+* Need to understand expected volume of cyclists and bicycles to take into consideration how many requests we will be handling. This could have further impact on scaling and size of services and databases
+* Consider a reporting database as volume grows. Especially for telemetries as the volume will be quite high with each bicycle checking in every 60 seconds.
+* All services will have monitoring in place to let technical team know about failures proactively to engage and fix. 
