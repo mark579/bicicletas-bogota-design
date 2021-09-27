@@ -16,11 +16,13 @@ condition (brake levels, tire pressure for front & rear tires, etc.) every 60 se
 
 ## Assumptions
 
+These are the assumptions that need validation, but what I'm assuming in this design. 
+
 * Bicycles are capable of communicating over the internet with a server to submit their telemetry every 60 seconds. 
-* Bicycles are capable of also knowing their location, and which station they are checked into. 
-* Users in the city will have mobile devices with internet access and location services.
+* The stations have a terminal with internet access and the capability of running a browser
+* Users in the city will have mobile devices with internet access.
 * The team is capable of build a system to add and authenticate users. 
-* We are trusting users to not take bicycles without checking them out, but we will have alerting to notify when stolen.
+* There is a system  built for provisioning prepaid cards. 
 
 ## High Level Diagram 
 
@@ -40,7 +42,7 @@ Each actor has a different way of interacting with the system and their workflow
 
 In the diagram there are three main sets components. The client side applications, the backend services and the Database. 
 
-I'll give a brief overview of each and it's responsiblities. 
+I'll give a brief overview of each and it's responsibility. 
 
 ### Client Applications
 
@@ -48,27 +50,34 @@ There are two main applications.
 
 A mobile web application that cyclist will use to checkout out a bike from a station, return it and process payment. 
 
-The other application is used for administration and reporting. It will be used primarily by the Capacity Managers to get access to reports on utilization and current usage. It will also have a reporting dashboard that technicians can acccess to get a current list of maintenance needs. 
+The other application is used for administration and reporting. It will be used primarily by the Capacity Managers to get access to reports on utilization and current usage. It will also have a reporting dashboard that technicians can access to get a current list of maintenance needs. 
 
-### Cyclist Mobile App
+### Cyclist/Station App
 
-The Cyclist Mobile App will be a web application that can be ran in any browser such that any user with a phone will be able to use the application. I would recommend to build using React and Material. 
+The Cyclist Mobile App will be a web application that can be ran in any browser such that any user with a phone will be able to use the application. I would recommend to build using React and Material. The application will be responsive so it can work on a mobile device but also on a station. 
 
-This design covers what actions happen at each primary major step of the process. Checkout, Riding, and Check In. 
+This design covers what actions happen at each primary major step of the process. Checkout, Riding, and Check In.
 
 #### Checkout
 
-Initiating a checkout will be the first action a user will want to take. They will need to sign up for an account and add payment information before checking out a Bike. Their mobile number and email will also need to be captured for contact purposes. 
+Initiating a checkout will be the first action a user will want to take.
 
-After signing in and adding payment information the application will request location information to ensure the user is in range of a station. 
+There are two workflows when coming into the application the user will have the choice of signing in and adding payment information or using a prepaid card. 
 
-After doings so the application will make a GET `/station/checkout` request with the users location to the Biking Services backend. 
+ * User account - They will need to sign up for an account and add payment information before checking out a Bike. Their mobile number and email will also need to be captured for contact purposes.
+ * Prepaid Card - The prepaid card option will allow the user to swipe the card. The swipe will enter the number in a form on our application, or the user can manually type it in. After validating there are sufficient funds we will load the fake user associated with the card and continue. 
+
+After successfully loading the user and validating payment information the user is then presented to the next step. 
+
+The application will allow the user to select a station, or in the case of the terminal will present them with the current station. The station will have  
+
+The application will make a GET `/station/checkout` request with the users location to the Biking Services backend.
 
 The backend will return with a station and if their are bicycles available offer the user the option to checkout a bike. The station will only offer bikes which are not in need of maintenance and will show the users if there is a Bike there but is in need of maintenance. (disabled)
 
-Upon checking selecting a bike the application will make a POST `/checkout` request to the Biking Service that will add a entry into the database indicating the time the bike was checked out, by which user and also mark the bicycles as checked out. 
+Upon checking selecting a bike the application will make a POST `/checkout` request to the Biking Service that will add a entry into the database indicating the time the bike was checked out, by which user and also mark the bicycles as checked out.
 
-Questions - What if the bike sensors fail during the trip? 
+Questions - What if the bike sensors fail during the trip?
 
 #### Riding
 
@@ -76,9 +85,9 @@ While the user has a bike checked out a screen will display showing them the dur
 
 #### Check in
 
-When a user has finished riding they will open the application and select the "Check In" button. 
+When a user has finished riding they will open the application and select the "Check In" button.
 
-The application will make a GET `/station/checkin` requestion with the current location and the checked out Bicycle. 
+The application will make a GET `/station/checkin` request with the current location and the checked out Bicycle. 
 
 The application will be given a list of stations that are available to check the bike into. Upon selecting the station the application will make a POST request to `/station/checkin` and provide the bicycle, and station that it will be checked into. 
 
@@ -87,7 +96,7 @@ The service will charge the customer based on the duration, and write to the dat
 
 ### Management Web Application
 
-The Management Web application will be used by the administers of the system. There are a few different type of administrators. The application will provide a view for each. It will also be a mobile application as many of the users will likely be on the move either working on bicycles or moving/managing htem. 
+The Management Web application will be used by the administers of the system. There are a few different type of administrators. The application will provide a view for each. It will also be a mobile application as many of the users will likely be on the move either working on bicycles or moving/managing them. 
 
 
 * Capacity Mangers - Provide the utilization rates of bicyles at each station and show how many are currently available at each station so they can make decisions on how to supply bicyles. This view will also allow managers to add or remove bicyles from the stations. They could access this on the go to make changes while they are at the station. 
@@ -96,7 +105,7 @@ The Management Web application will be used by the administers of the system. Th
 
 * Billing Department - Provide an interface which shows how much money is being made over time, and allow the biling department to adjust the cost. Further discussion on if there is need for tuning of the prices by day/hour/etc. We will assume a flat rate.
 
-This will need to be an authenticated appliation which allows only those with access in. There will need to be admin functions for those to add new users and assign them roles so they only have functions to the appropriate views. The roles will line up with what is listed above in addition to a admin who can view all. 
+This will need to be an authenticated application which allows only those with access in. There will need to be admin functions for those to add new users and assign them roles so they only have functions to the appropriate views. The roles will line up with what is listed above in addition to a admin who can view all. 
 
 Interactions will be described in the services section. User interfaces will support basic viewing, and editing actions based on the current users role. 
  
