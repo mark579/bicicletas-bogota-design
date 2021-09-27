@@ -145,7 +145,7 @@ The reporting services will need to be aware of the role of the user to ensure t
 
 `POST /bicycle/status` - Sets a bicycle to a status indicated by the technician. To take it out of service or put back in. 
 
-`POST /telemetry` - Allows user to technicians to create new telemetry rules. Rules will be inactivated instead of deleted to preserve relationships to notifications. Examples would be. Brake Level too low, Tire pressure too low.
+`POST /telemetry` - Allows user to technicians to create new telemetry rules. Rules will be inactivated instead of deleted to preserve relationships to notifications. Examples would be. Brake Level too low, Tire pressure too low. This will need to post over to the monitoring service to allow it to know that the cache needs updated. 
 
     Parameters - User ID, Telemtry Type, Warning Value, Critical Value
     Reply - Success/Failure
@@ -215,6 +215,9 @@ During operation as the endpoint is recieving telemtries and evaluating it will 
 
     Parameters - Bicycle ID, Brake Level, Tire Pressure Front, Location, etc.. 
     Response -  Success
+
+`POST /cache/reload` - 
+    Provides a way for the service to be notified of user/telemetry rules so that the cache can be reloaded. 
 
 ### Database Design
 
